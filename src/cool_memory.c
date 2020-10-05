@@ -11,6 +11,13 @@ CreateMemoryArena(size_t sizeInBytes)
     return arena;
 }
 
+void
+ClearArena(MemoryArena *arena)
+{
+    memset(arena->base, 0, arena->used);
+    arena->used = 0;
+}
+
 void *
 PushMemory_(MemoryArena *arena, size_t size)
 {

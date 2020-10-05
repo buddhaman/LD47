@@ -45,6 +45,11 @@ MapKeyCodeToAction(SDL_Keycode code)
             return ACTION_Q;
         } break;
 
+        case SDLK_r:
+        {
+            return ACTION_R;
+        } break;
+
         case SDLK_UP:
         {
             return ACTION_UP;

@@ -3,5 +3,5 @@
 CXX=gcc
 
 pushd src &> /dev/null
-$CXX main.c -lm -ldl -o ../exe -g -I../include -I/usr/local/include/SDL2 -lSDL2 -Wall -pthread ../external.o
+$CXX main.c -lm -ldl -o ../exe -g -I../include -I/usr/local/include/SDL2 -Bstatic -lSDL2 -Wall -pthread ../external.o
 popd &> /dev/null

@@ -116,7 +116,7 @@ UpdateAndRenderLoops(World *world, Mesh *mesh)
         {
             // Do loop ai. Check for closest loop. If bigger then move away. 
             // If smaller move towards
-            r32 aiSpeed = 1.0 * loop->speedFactor;
+            r32 aiSpeed = world->aiSpeed * loop->speedFactor;
             r32 minDist = 1000000.0;
             BugLoop *nearestEnemy = NULL;
             Vec3 nearestDiff;

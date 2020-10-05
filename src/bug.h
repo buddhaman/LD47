@@ -24,6 +24,7 @@ typedef struct
 {
     r32 width;
     r32 height;
+    r32 aiSpeed;
     int nBugs;
     int maxBugs;
     Bug *bugs;

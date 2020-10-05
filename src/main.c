@@ -91,6 +91,12 @@ CreateAndCompileShaderSource(const char * const*source, GLenum shaderType)
     return shader;
 }
 
+typedef enum
+{
+    STATE_MENU,
+    STATE_GAME
+} GameState;
+
 ui32 
 CreateAndLinkShaderProgram(ui32 vertexShader, ui32 fragmentShader)
 {
@@ -125,7 +131,74 @@ void data_callback(ma_device *pDevice, void *pOutput, const void *pInput, ma_uin
     (void)pInput;
 }
 
-int main(int argc, char**argv)
+void
+SetupWorld(MemoryArena *arena, World *world, r32 aiSpeed)
+{
+    // Creating the world
+    world->width = 500;
+    world->height = 320;
+    world->nBugs = 0;
+    world->maxBugs = 1200;
+    world->bugs = PushArray(arena, Bug, world->maxBugs);
+    world->maxLoops = 32;
+    world->aiSpeed = aiSpeed;
+    world->loops = PushArray(arena, BugLoop, world->maxLoops);
+    world->loopBugPointers = PushArray(arena, Bug*, world->maxBugs);
+    world->loopColors[0] = ARGBToVec3(0xffff0000);
+    world->loopColors[1] = ARGBToVec3(0xff006400);
+    world->loopColors[2] = ARGBToVec3(0xff191970);
+    world->loopColors[3] = ARGBToVec3(0xff2f4f4f);
+    world->loopColors[4] = ARGBToVec3(0xff00ff00);
+    world->loopColors[5] = ARGBToVec3(0xff00ffff);
+    world->loopColors[6] = ARGBToVec3(0xffff00ff);
+    world->loopColors[7] = ARGBToVec3(0xffffb6c1);
+    world->isLoopDistributionDirty = 1;
+    int nLoops = 32;
+    for(int loopN = 0;
+            loopN < nLoops;
+            loopN++)
+    {
+        AddLoop(arena, world);
+        int nBugsInLoop = loopN == 0 ? 50 : 30;
+        for(int bugIdx = 0;
+                bugIdx < nBugsInLoop;
+                bugIdx++)
+        {
+            Bug *bug = AddBug(world, loopN);
+        }
+    }
+}
+
+void 
+SetupWorldMesh(World *world, Mesh *mesh)
+{
+    ClearMesh(mesh);
+    r32 tileSize = 10;
+    int xTiles = (int)(world->width/tileSize);
+    int yTiles = (int)(world->height/tileSize);
+    mesh->colorState = ARGBToVec3(0xff5cf508);
+    PushHeightField(mesh, tileSize, xTiles+1, yTiles+1);
+    int nCactus = 5;
+    for(int i = 0; i < nCactus; i++)
+    {
+        Vec3 randPos = vec3(RandomFloat(0, world->width), RandomFloat(0, world->height), -1);
+        PushCactus(mesh, randPos, 5);
+    }
+}
+
+void 
+ResetWorld(MemoryArena *arena, World **world, Mesh *groundMesh, Model *groundModel, r32 aiSpeed)
+{
+    ClearArena(arena);
+    *world = PushStruct(arena, World);
+    SetupWorld(arena, *world, aiSpeed);
+    ClearMesh(groundMesh);
+    SetupWorldMesh(*world, groundMesh);
+    SetModelFromMesh(groundModel, groundMesh, GL_STATIC_DRAW);
+}
+
+int 
+main(int argc, char**argv)
 {
 
 #if 0
@@ -220,7 +293,6 @@ int main(int argc, char**argv)
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(r32), (void *)0);
 
-    MemoryArena *arena = CreateMemoryArena(1024*1024*20);
 
     // Setup nuklear
     struct nk_context *ctx;
@@ -241,70 +313,41 @@ int main(int argc, char**argv)
     // Timing
     b32 done = 0;
     ui32 frameCounter = 0;
+    r32 aiSpeed = 1.0;
     
     // Camera
     Camera camera;
     InitCamera(&camera);
     camera.lookAt = vec3(10,10,0);
 
-    // Creating the world
-    World *world = PushStruct(arena, World);
-    world->width = 500;
-    world->height = 320;
-    world->nBugs = 0;
-    world->maxBugs = 1200;
-    world->bugs = PushArray(arena, Bug, world->maxBugs);
-    world->maxLoops = 32;
-    world->loops = PushArray(arena, BugLoop, world->maxLoops);
-    world->loopBugPointers = PushArray(arena, Bug*, world->maxBugs);
-    world->loopColors[0] = ARGBToVec3(0xffff0000);
-    world->loopColors[1] = ARGBToVec3(0xff006400);
-    world->loopColors[2] = ARGBToVec3(0xff191970);
-    world->loopColors[3] = ARGBToVec3(0xff2f4f4f);
-    world->loopColors[4] = ARGBToVec3(0xff00ff00);
-    world->loopColors[5] = ARGBToVec3(0xff00ffff);
-    world->loopColors[6] = ARGBToVec3(0xffff00ff);
-    world->loopColors[7] = ARGBToVec3(0xffffb6c1);
-    world->isLoopDistributionDirty = 1;
+    MemoryArena *gameArena = CreateMemoryArena(1024*1024*20);
+    MemoryArena *renderArena = CreateMemoryArena(1024*1024*20);
 
-    r32 tileSize = 10;
-    int xTiles = (int)(world->width/tileSize);
-    int yTiles = (int)(world->height/tileSize);
-    Model *groundModel = PushStruct(arena, Model);
-    Mesh *groundMesh = CreateMesh(arena, 20000);
-    InitModel(arena, groundModel, 20000);
-    groundMesh->colorState = ARGBToVec3(0xff5cf508);
-    PushHeightField(groundMesh, tileSize, xTiles+1, yTiles+1);
-    int nCactus = 5;
-    for(int i = 0; i < nCactus; i++)
-    {
-        Vec3 randPos = vec3(RandomFloat(0, world->width), RandomFloat(0, world->height), -1);
-        PushCactus(groundMesh, randPos, 5);
-    }
+    World *world = PushStruct(gameArena, World);
+    SetupWorld(gameArena, world, aiSpeed);
+
+    Model *groundModel = PushStruct(renderArena, Model);
+    Mesh *groundMesh = CreateMesh(renderArena, 20000);
+    InitModel(gameArena, groundModel, 20000);
+
+    SetupWorldMesh(world, groundMesh);
     SetModelFromMesh(groundModel, groundMesh, GL_STATIC_DRAW);
 
-    Mesh *dynamicMesh = CreateMesh(arena, 100000);
-    Model *dynamicModel = PushStruct(arena, Model);
-    InitModel(arena, dynamicModel, 100000);
+    Mesh *dynamicMesh = CreateMesh(renderArena, 100000);
+    Model *dynamicModel = PushStruct(renderArena, Model);
+    InitModel(gameArena, dynamicModel, 100000);
 
-    int nLoops = 32;
-    for(int loopN = 0;
-            loopN < nLoops;
-            loopN++)
-    {
-        AddLoop(arena, world);
-        int nBugsInLoop = loopN == 0 ? 50 : 30;
-        for(int bugIdx = 0;
-                bugIdx < nBugsInLoop;
-                bugIdx++)
-        {
-            Bug *bug = AddBug(world, loopN);
-        }
-    }
     DebugOut("%d bugs", world->nBugs);
     BugLoop *playerLoop = world->loops;
 
-    DebugOut("%lu / %lu bytes used. %lu prcnt", arena->used, arena->size, arena->used/arena->size);
+    DebugOut("game arena : %lu / %lu bytes used. %lu procent", 
+            gameArena->used, gameArena->size, (gameArena->used*100)/gameArena->size);
+    DebugOut("render arena : %lu / %lu bytes used. %lu procent", 
+            renderArena->used, renderArena->size, (renderArena->used*100)/renderArena->size);
+
+    GameState state = STATE_MENU;
+    playerLoop->pos.x=world->width/2;
+    playerLoop->pos.y=world->height/2;
 
     while(!done)
     {
@@ -361,39 +404,51 @@ int main(int argc, char**argv)
         glUseProgram(simpleShader);
         r32 camSpeed = 2;
         r32 zoomSpeed = 0.98;
-        if(IsKeyActionDown(appState, ACTION_Z))
+        if(state==STATE_GAME)
         {
-            camera.spherical.z*=zoomSpeed;
+            if(IsKeyActionDown(appState, ACTION_Z))
+            {
+                camera.spherical.z*=zoomSpeed;
+            }
+            if(IsKeyActionDown(appState, ACTION_X))
+            {
+                camera.spherical.z/=zoomSpeed;
+            }
+            if(IsKeyActionDown(appState, ACTION_UP))
+            {
+                playerLoop->pos.y+=camSpeed;
+            }
+            if(IsKeyActionDown(appState, ACTION_DOWN))
+            {
+                playerLoop->pos.y-=camSpeed;
+            }
+            if(IsKeyActionDown(appState, ACTION_LEFT))
+            {
+                playerLoop->pos.x-=camSpeed;
+            }
+            if(IsKeyActionDown(appState, ACTION_RIGHT))
+            {
+                playerLoop->pos.x+=camSpeed;
+            }
+            if(IsKeyActionDown(appState, ACTION_Q))
+            {
+                camera.spherical.y-=0.1;
+                if(camera.spherical.y < 0.1) camera.spherical.y = 0.1;
+            }
+            if(IsKeyActionDown(appState, ACTION_E))
+            {
+                camera.spherical.y+=0.1;
+                if(camera.spherical.y > M_PI/2-0.1) camera.spherical.y = M_PI/2-0.1;
+            }
+            if(IsKeyActionDown(appState, ACTION_R))
+            {
+            }
         }
-        if(IsKeyActionDown(appState, ACTION_X))
+        else
         {
-            camera.spherical.z/=zoomSpeed;
-        }
-        if(IsKeyActionDown(appState, ACTION_UP))
-        {
-            playerLoop->pos.y+=camSpeed;
-        }
-        if(IsKeyActionDown(appState, ACTION_DOWN))
-        {
-            playerLoop->pos.y-=camSpeed;
-        }
-        if(IsKeyActionDown(appState, ACTION_LEFT))
-        {
-            playerLoop->pos.x-=camSpeed;
-        }
-        if(IsKeyActionDown(appState, ACTION_RIGHT))
-        {
-            playerLoop->pos.x+=camSpeed;
-        }
-        if(IsKeyActionDown(appState, ACTION_Q))
-        {
-            camera.spherical.y-=0.1;
-            if(camera.spherical.y < 0.1) camera.spherical.y = 0.1;
-        }
-        if(IsKeyActionDown(appState, ACTION_E))
-        {
-            camera.spherical.y+=0.1;
-            if(camera.spherical.y > M_PI/2-0.1) camera.spherical.y = M_PI/2-0.1;
+            playerLoop->pos.x+=cosf(time)*(1.2+sinf(2*time));
+            playerLoop->pos.y+=sinf(time)*(1.2+cosf(time));
+            camera.spherical.z = 80+sinf(time)*20;
         }
         // Update loop pos
         camera.lookAt = playerLoop->pos;
@@ -418,15 +473,51 @@ int main(int argc, char**argv)
         glDisable(GL_CULL_FACE);
         RenderModel(dynamicModel);
         ClearMesh(dynamicMesh);
-#if 0
-        // Gui
-        if(nk_begin(ctx, "This is a cool window", nk_rect(700, 50, 230, 250),
-                    NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_TITLE | NK_WINDOW_SCALABLE))
+
+        // Menu
+        r32 menuWidth = 330;
+        r32 menuHeight = 250;
+        if(state==STATE_MENU)
         {
+            nk_begin(ctx, "Mehnu", 
+                    nk_rect(appState->screenWidth/2-menuWidth/2, appState->screenHeight/2-menuHeight/2, 
+                        menuWidth, menuHeight),
+                        NK_WINDOW_BORDER | NK_WINDOW_TITLE);
+            nk_layout_row_static(ctx, 30, 300, 1);
+            if(nk_button_label(ctx, "begni bgame"))
+            {
+                state=STATE_GAME;;
+                ResetWorld(gameArena, &world, groundMesh, groundModel, aiSpeed);
+            }
+            nk_label_wrap(ctx, "Insrtuctions: Cllect al bugs in u loop");
+            nk_label_wrap(ctx, "MOve: WASD/arrows, zoom: Z, X, Tilst camera: Q, E");
+            nk_label_wrap(ctx, "Diffculty");
+            nk_slider_float(ctx, 0.8, &aiSpeed, 4, 0.2);
+                    
+            nk_end(ctx);
         }
-        nk_end(ctx);
+        else
+        {
+            nk_begin(ctx, "game", nk_rect(0,0,400,40), 0);
+            nk_layout_row_static(ctx, 30, 250, 1);
+            nk_labelf_wrap(ctx, "numnbr of bfugs %d", playerLoop->nBugs);
+            nk_end(ctx);
+            // If won
+            if(playerLoop->nBugs <= 0 || playerLoop->nBugs >= world->nBugs*0.8)
+            {
+                nk_begin(ctx, playerLoop->nBugs <= 0 ? "Youu lost!" : "u won",
+                        nk_rect(appState->screenWidth/2-menuWidth/2, 0, menuWidth, 80),
+                            NK_WINDOW_BORDER | NK_WINDOW_TITLE);
+                nk_layout_row_static(ctx, 30, 250, 1);
+                if(nk_button_label(ctx, "K"))
+                {
+                    state=STATE_MENU;;
+                }
+                nk_end(ctx);
+            }
+        }
+
         nk_sdl_render(NK_ANTI_ALIASING_ON, MAX_VERTEX_MEMORY, MAX_ELEMENT_MEMORY);
-#endif
 
         // frame timing
         ui32 frameEnd = SDL_GetTicks();
