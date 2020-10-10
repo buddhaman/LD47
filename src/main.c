@@ -1,4 +1,5 @@
 #include "external_headers.h"
+#include <time.h>
 
 #define DebugOut(args...) printf(args); printf("\t\t %s:%d\n", __FILE__, __LINE__)
 #define Assert(expr) if(!(expr)) {DebugOut("assert failed "#expr""); \

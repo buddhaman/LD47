@@ -1,0 +1,8 @@
+#!/bin/bash
+
+CXX=x86_64-w64-mingw32-gcc
+
+pushd src &> /dev/null
+$CXX external_libs.c -c -lm -o ../externalWin.o -g -I../include -I../../SDL2/include \
+    -L../../SDL2/lib -Wall
+popd &> /dev/null
