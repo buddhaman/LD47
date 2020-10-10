@@ -3,6 +3,6 @@
 CXX=x86_64-w64-mingw32-gcc
 
 pushd src &> /dev/null
-$CXX main.c -lm -o ../exeWin ../externalWin.o -g -I../include -I../../SDL2/include -L../../SDL2/lib \
-    -Bstatic -lmingw32 -lSDL2main -lSDL2 -Wall 
+$CXX main.c -lm -o ../exeWin ../externalWin.o -g -I../include -I../../SDL2/include -L../../SDL2/lib -Wall  \
+    -static -lmingw32 -lSDL2main -lSDL2 -mwindows -ldinput8 -ldxguid -ldxerr8 -luser32 -lgdi32 -lsetupapi -lhid -lwinmm -limm32 -lole32 -loleaut32 -lshell32 -lversion -luuid -static-libgcc
 popd &> /dev/null
