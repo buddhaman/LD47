@@ -39,6 +39,10 @@ typedef i32 b32;
 #include "renderer.c"
 #include "bug.c"
 
+// shaders
+#include "shaderVert.h"
+#include "shaderFrag.h"
+
 #define FRAMES_PER_SECOND 60
 
 const char *
@@ -268,8 +272,8 @@ main(int argc, char**argv)
     }
 
     // Setup shaders
-    const char *const solidFragSource = ReadEntireFile("shaders/solid.frag");
-    const char *const solidVertSource = ReadEntireFile("shaders/solid.vert");
+    const char *const solidFragSource = shaders_solid_frag;
+    const char *const solidVertSource = shaders_solid_vert;
     
     ui32 fragmentShader = CreateAndCompileShaderSource(&solidFragSource, GL_FRAGMENT_SHADER);
     ui32 vertexShader = CreateAndCompileShaderSource(&solidVertSource, GL_VERTEX_SHADER);
