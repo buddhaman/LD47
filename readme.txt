@@ -1,7 +1,4 @@
-Idea:
-
-This is going to be a game, i'm not sure yet what, but it will have a very 
-minimal game engine with openGL backend.
+This is my entry for ludum dare 47
 
 Gui             : nuklear
 Platform layer  : SDL2
